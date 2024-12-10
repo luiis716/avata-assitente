@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Assistente Avatar 3D</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/110/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -28,152 +28,122 @@
 <body>
     <button id="start-button">Falar</button>
     <script>
-        // Configuração do reconhecimento de voz
+        let scene, camera, renderer, avatar, mixer, mouthMorph;
+        const clock = new THREE.Clock();
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(5, 5, 5).normalize();
+            scene.add(light);
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 1);
+            scene.add(ambientLight);
+
+            const loader = new THREE.GLTFLoader();
+            loader.load('https://example.com/path/to/your/avatar.glb', (gltf) => {
+                avatar = gltf.scene;
+                scene.add(avatar);
+
+                mixer = new THREE.AnimationMixer(avatar);
+
+                avatar.traverse((node) => {
+                    if (node.isMesh && node.morphTargetDictionary) {
+                        mouthMorph = node;
+                    }
+                });
+
+                camera.position.set(0, 1.5, 3);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            if (mixer) mixer.update(delta);
+
+            renderer.render(scene, camera);
+        }
+
+        function animateMouth(scale) {
+            if (mouthMorph) {
+                const morphIndex = mouthMorph.morphTargetDictionary['mouthOpen'];
+                if (morphIndex !== undefined) {
+                    mouthMorph.morphTargetInfluences[morphIndex] = scale;
+                }
+            }
+        }
+
+        function changeExpression(emotion) {
+            if (mouthMorph) {
+                const morphTargets = mouthMorph.morphTargetDictionary;
+                if (emotion === 'happy' && morphTargets['smile']) {
+                    mouthMorph.morphTargetInfluences[morphTargets['smile']] = 1;
+                } else if (emotion === 'sad' && morphTargets['frown']) {
+                    mouthMorph.morphTargetInfluences[morphTargets['frown']] = 1;
+                } else {
+                    Object.keys(morphTargets).forEach((key) => {
+                        mouthMorph.morphTargetInfluences[morphTargets[key]] = 0;
+                    });
+                }
+            }
+        }
+
         const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'pt-BR';
         recognition.interimResults = false;
 
         const synth = window.speechSynthesis;
 
-        // Avatar em 3D com expressões faciais
-        let scene, camera, renderer, avatar, mouth, leftEye, rightEye, leftBrow, rightBrow;
-
-        function createAvatar() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
-
-            const light = new THREE.AmbientLight(0xffffff, 0.7);
-            scene.add(light);
-
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-            directionalLight.position.set(0, 1, 1).normalize();
-            scene.add(directionalLight);
-
-            // Cabeça
-            const headGeometry = new THREE.SphereGeometry(1, 32, 32);
-            const headMaterial = new THREE.MeshStandardMaterial({ color: 0x99ccff });
-            avatar = new THREE.Mesh(headGeometry, headMaterial);
-            avatar.position.y = 0.5;
-            scene.add(avatar);
-
-            // Olhos
-            const eyeGeometry = new THREE.SphereGeometry(0.1, 16, 16);
-            const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-            leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-            rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-
-            const pupilMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
-            const pupilGeometry = new THREE.SphereGeometry(0.05, 16, 16);
-
-            leftEye.position.set(-0.4, 0.2, 1);
-            rightEye.position.set(0.4, 0.2, 1);
-
-            avatar.add(leftEye);
-            avatar.add(rightEye);
-
-            // Sobrancelhas
-            const browGeometry = new THREE.BoxGeometry(0.5, 0.1, 0.1);
-            const browMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
-            leftBrow = new THREE.Mesh(browGeometry, browMaterial);
-            rightBrow = new THREE.Mesh(browGeometry, browMaterial);
-
-            leftBrow.position.set(-0.4, 0.4, 1.05);
-            rightBrow.position.set(0.4, 0.4, 1.05);
-
-            avatar.add(leftBrow);
-            avatar.add(rightBrow);
-
-            // Boca
-            const mouthGeometry = new THREE.BoxGeometry(0.6, 0.2, 0.1);
-            const mouthMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-            mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
-            mouth.position.set(0, -0.5, 1.05);
-            avatar.add(mouth);
-
-            camera.position.z = 5;
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            renderer.render(scene, camera);
-        }
-
-        function openMouth() {
-            mouth.scale.y = 2; // Boca abre
-        }
-
-        function closeMouth() {
-            mouth.scale.y = 1; // Boca fecha
-        }
-
-        function animateBrows(emotion) {
-            if (emotion === 'happy') {
-                leftBrow.position.y = 0.5;
-                rightBrow.position.y = 0.5;
-            } else if (emotion === 'sad') {
-                leftBrow.position.y = 0.3;
-                rightBrow.position.y = 0.3;
-            } else {
-                leftBrow.position.y = 0.4;
-                rightBrow.position.y = 0.4;
-            }
-        }
-
-        // Processamento de voz
         recognition.onresult = (event) => {
-    const speechText = event.results[0][0].transcript;
-    console.log('Texto reconhecido:', speechText);
+            const speechText = event.results[0][0].transcript;
+            console.log('Texto reconhecido:', speechText);
 
-    // Envia o texto para o Webhook
-    fetch('https://seu-webhook-n8n.com/webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: speechText })
-    })
-        .then(response => response.json())
-        .then(({ reply, emotion }) => {
-            if (reply) {
-                console.log('Resposta do Webhook:', reply);
+            fetch('https://automacao-n8n.qzydu8.easypanel.host/webhook-test/169c631c-3450-4922-b890-1700b7f007fd', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: speechText })
+            })
+                .then(response => response.json())
+                .then(({ reply, emotion }) => {
+                    if (reply) {
+                        console.log('Resposta do Webhook:', reply);
 
-                // Configura o sintetizador de fala
-                const utterance = new SpeechSynthesisUtterance(reply);
-                utterance.lang = 'pt-BR';
+                        const utterance = new SpeechSynthesisUtterance(reply);
+                        utterance.lang = 'pt-BR';
 
-                // Eventos de animação durante a fala
-                utterance.onstart = () => {
-                    console.log('Falando:', reply);
-                    animateMouth(1); // Boca abre ao falar
-                };
+                        utterance.onstart = () => animateMouth(1);
+                        utterance.onend = () => animateMouth(0);
 
-                utterance.onend = () => {
-                    console.log('Fala concluída.');
-                    animateMouth(0); // Boca fecha após a fala
-                };
+                        synth.speak(utterance);
 
-                // Executa a fala
-                synth.speak(utterance);
-            } else {
-                console.error('O Webhook não retornou um texto válido.');
-            }
-        })
-        .catch(error => {
-            console.error('Erro ao conectar ao Webhook:', error);
-        });
-};
+                        if (emotion) {
+                            changeExpression(emotion);
+                        }
+                    } else {
+                        console.error('O Webhook não retornou um texto válido.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao conectar ao Webhook:', error);
+                });
+        };
 
         recognition.onend = () => {
-            recognition.start(); // Reinicia para ouvir continuamente
+            recognition.start();
         };
 
         document.getElementById('start-button').addEventListener('click', () => {
             recognition.start();
         });
 
-        // Inicializa o avatar
-        createAvatar();
+        init();
         animate();
     </script>
 </body>
