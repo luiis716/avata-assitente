@@ -64,6 +64,7 @@
     const mouth = document.getElementById('mouth');
     const keyword = "ei"; // Palavra-chave de ativação
     let isActivated = false; // Estado de ativação
+    let awaitingCommand = false; // Espera por um comando após ativação
 
     // Função para animar a boca enquanto fala
     function startTalking() {
@@ -102,19 +103,21 @@
       const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
       console.log("Você disse:", transcript);
 
-      if (!isActivated) {
+      if (!isActivated && !awaitingCommand) {
         // Verifica se a palavra-chave foi dita
         if (transcript.includes(keyword)) {
           isActivated = true; // Ativa o fluxo principal
-          repeatText("Estou ouvindo!"); // Resposta de ativação
+          repeatText("Em que posso ajudar?"); // Resposta de ativação
+          awaitingCommand = true; // Ativa o estado de espera por comando
         }
-      } else {
+      } else if (awaitingCommand) {
         // Quando ativado, envia a fala ao n8n
         const apiResponse = await sendToN8N(transcript);
         repeatText(apiResponse);
 
-        // Desativa após o processamento
+        // Reinicia o estado após responder
         isActivated = false;
+        awaitingCommand = false;
       }
     };
 
