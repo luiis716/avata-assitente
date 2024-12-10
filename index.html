@@ -28,74 +28,7 @@
 <body>
     <button id="start-button">Falar</button>
     <script>
-        let scene, camera, renderer, avatar, mixer, mouthMorph;
-        const clock = new THREE.Clock();
         let isProcessing = false; // Controle de estado para evitar reinícios prematuros
-
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
-
-            const light = new THREE.DirectionalLight(0xffffff, 1);
-            light.position.set(5, 5, 5).normalize();
-            scene.add(light);
-
-            const ambientLight = new THREE.AmbientLight(0x404040, 1);
-            scene.add(ambientLight);
-
-            // Inicialização do modelo 3D
-            const loader = new THREE.GLTFLoader();
-            loader.load('https://example.com/path/to/your/avatar.glb', (gltf) => {
-                avatar = gltf.scene;
-                scene.add(avatar);
-
-                mixer = new THREE.AnimationMixer(avatar);
-
-                avatar.traverse((node) => {
-                    if (node.isMesh && node.morphTargetDictionary) {
-                        mouthMorph = node;
-                    }
-                });
-
-                camera.position.set(0, 1.5, 3);
-            });
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-
-            const delta = clock.getDelta();
-            if (mixer) mixer.update(delta);
-
-            renderer.render(scene, camera);
-        }
-
-        function animateMouth(scale) {
-            if (mouthMorph) {
-                const morphIndex = mouthMorph.morphTargetDictionary['mouthOpen'];
-                if (morphIndex !== undefined) {
-                    mouthMorph.morphTargetInfluences[morphIndex] = scale;
-                }
-            }
-        }
-
-        function changeExpression(emotion) {
-            if (mouthMorph) {
-                const morphTargets = mouthMorph.morphTargetDictionary;
-                if (emotion === 'happy' && morphTargets['smile']) {
-                    mouthMorph.morphTargetInfluences[morphTargets['smile']] = 1;
-                } else if (emotion === 'sad' && morphTargets['frown']) {
-                    mouthMorph.morphTargetInfluences[morphTargets['frown']] = 1;
-                } else {
-                    Object.keys(morphTargets).forEach((key) => {
-                        mouthMorph.morphTargetInfluences[morphTargets[key]] = 0;
-                    });
-                }
-            }
-        }
 
         const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'pt-BR';
@@ -117,7 +50,10 @@
                 body: JSON.stringify({ message: speechText })
             })
                 .then(response => response.json())
-                .then(({ reply, emotion }) => {
+                .then((responseData) => {
+                    // Extrai a resposta do Webhook
+                    const reply = responseData[0]?.output;
+
                     if (reply) {
                         console.log('Resposta do Webhook:', reply);
 
@@ -125,18 +61,14 @@
                         const utterance = new SpeechSynthesisUtterance(reply);
                         utterance.lang = 'pt-BR';
 
-                        utterance.onstart = () => animateMouth(1);
+                        utterance.onstart = () => console.log('Fala iniciada.');
                         utterance.onend = () => {
-                            animateMouth(0);
+                            console.log('Fala concluída.');
                             isProcessing = false; // Permite reiniciar o reconhecimento
                             recognition.start(); // Reinicia o reconhecimento de voz
                         };
 
                         synth.speak(utterance);
-
-                        if (emotion) {
-                            changeExpression(emotion);
-                        }
                     } else {
                         console.error('O Webhook não retornou um texto válido.');
                         isProcessing = false; // Desbloqueia para novas capturas
@@ -159,9 +91,6 @@
         document.getElementById('start-button').addEventListener('click', () => {
             recognition.start();
         });
-
-        init();
-        animate();
     </script>
 </body>
 </html>
