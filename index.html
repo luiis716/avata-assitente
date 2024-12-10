@@ -1,107 +1,163 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Assistente Avatar 3D</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-        }
-        #start-button {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #007BFF;
-            color: #FFF;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            z-index: 10;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Avatar Ouvindo e Repetindo com n8n</title>
+  <style>
+    .avatar {
+      width: 200px;
+      height: 200px;
+      background-color: #f5cba7;
+      border-radius: 50%;
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .eye {
+      width: 20px;
+      height: 20px;
+      background-color: black;
+      border-radius: 50%;
+      position: absolute;
+      top: 60px;
+    }
+
+    .eye.left {
+      left: 50px;
+    }
+
+    .eye.right {
+      right: 50px;
+    }
+
+    .mouth {
+      width: 80px;
+      height: 40px;
+      background-color: black;
+      border-radius: 0 0 50px 50px;
+      position: absolute;
+      bottom: 40px;
+      left: 50px;
+    }
+
+    .mouth.talking {
+      animation: talking 0.2s infinite;
+    }
+
+    @keyframes talking {
+      0% { transform: scaleY(0.5); }
+      50% { transform: scaleY(1); }
+      100% { transform: scaleY(0.5); }
+    }
+  </style>
 </head>
 <body>
-    <button id="start-button">Falar</button>
-    <script>
-        let isProcessing = false; // Controle de estado para evitar reinícios prematuros
 
-        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        recognition.lang = 'pt-BR';
-        recognition.interimResults = false;
+  <div class="avatar">
+    <div class="eye left"></div>
+    <div class="eye right"></div>
+    <div class="mouth" id="mouth"></div>
+  </div>
 
-        const synth = window.speechSynthesis;
+  <button onclick="startListening()">Clique para falar</button>
 
-        recognition.onresult = (event) => {
-            const speechText = event.results[0][0].transcript;
-            console.log('Texto reconhecido:', speechText);
+  <script>
+    const mouth = document.getElementById('mouth');
 
-            // Bloqueia novas capturas enquanto processa
-            isProcessing = true;
+    // Função para animar a boca enquanto fala
+    function startTalking() {
+      mouth.classList.add('talking');
+    }
 
-            // Envia o texto para o Webhook
-            fetch('https://automacao-n8n.qzydu8.easypanel.host/webhook-test/169c631c-3450-4922-b890-1700b7f007fd', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: speechText })
-            })
-                .then(response => response.json())
-                .then((responseData) => {
-                    // Extrai a resposta do Webhook
-                    const reply = responseData[0]?.output;
+    function stopTalking() {
+      mouth.classList.remove('talking');
+    }
 
-                    if (reply) {
-                        console.log('Resposta do Webhook:', reply);
+    // Função para repetir o texto falado
+    function repeatText(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
 
-                        // Configura o sintetizador de fala
-                        const utterance = new SpeechSynthesisUtterance(reply);
-                        utterance.lang = 'pt-BR';
+      // Configurar a voz (você pode listar e escolher uma voz diferente)
+      const voices = window.speechSynthesis.getVoices();
+      utterance.voice = voices.find(voice => voice.lang === 'pt-BR') || voices[0]; // Pega a primeira voz em português do Brasil, se disponível
 
-                        utterance.onstart = () => {
-                            console.log('Fala iniciada.');
-                        };
+      // Configurar parâmetros adicionais, como velocidade e tom
+      utterance.rate = 1; // Velocidade normal
+      utterance.pitch = 1; // Tom normal
 
-                        utterance.onend = () => {
-                            console.log('Fala concluída.');
+      // Iniciar a fala
+      window.speechSynthesis.speak(utterance);
 
-                            // Reinicia o reconhecimento de voz após a fala terminar
-                            isProcessing = false;
-                            recognition.start();
-                        };
+      // Animação da boca enquanto fala
+      utterance.onstart = function() {
+        startTalking();
+      };
 
-                        // Executa a fala
-                        synth.speak(utterance);
-                    } else {
-                        console.error('O Webhook não retornou um texto válido.');
+      // Parar a animação ao terminar a fala
+      utterance.onend = function() {
+        stopTalking();
+      };
+    }
 
-                        // Reativar o reconhecimento em caso de erro
-                        isProcessing = false;
-                        recognition.start();
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro ao conectar ao Webhook:', error);
+    // Web Speech API para reconhecimento de fala
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
 
-                    // Reativar o reconhecimento em caso de erro
-                    isProcessing = false;
-                    recognition.start();
-                });
-        };
+    // Configurar o idioma para português
+    recognition.lang = 'pt-BR';
 
-        recognition.onend = () => {
-            // Não reiniciar o microfone enquanto estiver processando ou falando
-            if (!isProcessing) {
-                recognition.start();
-            }
-        };
+    // Iniciar o reconhecimento de fala
+    recognition.onstart = function() {
+      console.log("Reconhecimento de fala iniciado.");
+      startTalking();
+    };
 
-        document.getElementById('start-button').addEventListener('click', () => {
-            recognition.start();
+    // Quando capturar o resultado
+    recognition.onresult = async function(event) {
+      const transcript = event.results[0][0].transcript;
+      console.log("Você disse:", transcript);
+      stopTalking();
+
+      // Enviar a fala para o n8n e obter a resposta
+      const apiResponse = await sendToN8N(transcript);
+
+      // Repetir a resposta recebida do n8n
+      repeatText(apiResponse);
+    };
+
+    recognition.onspeechend = function() {
+      stopTalking();
+    };
+
+    // Função para iniciar a escuta
+    function startListening() {
+      recognition.start();
+    }
+
+    // Função para enviar texto para o n8n e obter a resposta
+    async function sendToN8N(userMessage) {
+      const webhookUrl = 'https://automacao-n8n.qzydu8.easypanel.host/webhook-test/169c631c-3450-4922-b890-1700b7f007fd'; // Substitua pelo URL do seu webhook
+
+      const body = { message: userMessage };
+
+      try {
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
         });
-    </script>
+
+        const data = await response.json();
+        return data[0]?.output || "Desculpe, não consegui entender."; // Retorna a resposta ou uma mensagem padrão
+      } catch (error) {
+        console.error("Erro ao enviar para o n8n:", error);
+        return "Desculpe, ocorreu um erro ao processar sua solicitação.";
+      }
+    }
+  </script>
+
 </body>
 </html>
