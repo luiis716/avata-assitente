@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente Avatar 3D</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/110/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        #start-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007BFF;
+            color: #FFF;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <button id="start-button">Falar</button>
+    <script>
+        // Configurações do reconhecimento de voz
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'pt-BR';
+        recognition.interimResults = false;
+
+        // Configuração do Web Speech API para texto para fala
+        const synth = window.speechSynthesis;
+
+        // Avatar em 3D com Three.js
+        let scene, camera, renderer, avatar, mouth;
+        function createAvatar() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const light = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(light);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(0, 1, 1).normalize();
+            scene.add(directionalLight);
+
+            // Criando o avatar (cabeça básica)
+            const headGeometry = new THREE.SphereGeometry(1, 32, 32);
+            const headMaterial = new THREE.MeshStandardMaterial({ color: 0x99ccff });
+            avatar = new THREE.Mesh(headGeometry, headMaterial);
+            avatar.position.y = 0.5;
+            scene.add(avatar);
+
+            // Boca do avatar
+            const mouthGeometry = new THREE.BoxGeometry(0.6, 0.2, 0.1);
+            const mouthMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+            mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
+            mouth.position.set(0, -0.5, 1.05);
+            avatar.add(mouth);
+
+            camera.position.z = 5;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        function openMouth() {
+            mouth.scale.y = 2; // Boca abre
+        }
+
+        function closeMouth() {
+            mouth.scale.y = 1; // Boca fecha
+        }
+
+        // Função para detectar pausa e enviar ao Webhook
+        let pauseTimeout;
+        function sendToWebhook(text) {
+            fetch('https://automacao-n8n.qzydu8.easypanel.host/webhook-test/169c631c-3450-4922-b890-1700b7f007fd', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text })
+            })
+                .then(response => response.json())
+                .then(({ reply }) => {
+                    console.log('Resposta do N8N:', reply);
+                    const utterance = new SpeechSynthesisUtterance(reply);
+                    utterance.lang = 'pt-BR';
+                    utterance.onstart = openMouth;
+                    utterance.onend = closeMouth;
+                    synth.speak(utterance);
+                });
+        }
+
+        recognition.onresult = (event) => {
+            const speechText = event.results[0][0].transcript;
+            console.log('Texto reconhecido:', speechText);
+
+            // Limpa qualquer timeout anterior
+            clearTimeout(pauseTimeout);
+
+            // Configura o envio após pausa de 2 segundos
+            pauseTimeout = setTimeout(() => {
+                sendToWebhook(speechText);
+            }, 2000); // Ajuste o tempo conforme necessário
+        };
+
+        recognition.onend = () => {
+            recognition.start(); // Reinicia para ouvir continuamente
+        };
+
+        document.getElementById('start-button').addEventListener('click', () => {
+            recognition.start();
+        });
+
+        // Inicialização
+        createAvatar();
+        animate();
+    </script>
+</body>
+</html>
