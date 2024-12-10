@@ -64,21 +64,33 @@
                         utterance.onstart = () => console.log('Fala iniciada.');
                         utterance.onend = () => {
                             console.log('Fala concluída.');
-                            isProcessing = false; // Permite reiniciar o reconhecimento
-                            recognition.start(); // Reinicia o reconhecimento de voz
+
+                            // Delay antes de reativar o reconhecimento
+                            setTimeout(() => {
+                                isProcessing = false; // Permite reiniciar o reconhecimento
+                                recognition.start(); // Reinicia o reconhecimento de voz
+                            }, 500); // Ajuste o delay conforme necessário
                         };
 
                         synth.speak(utterance);
                     } else {
                         console.error('O Webhook não retornou um texto válido.');
-                        isProcessing = false; // Desbloqueia para novas capturas
-                        recognition.start();
+
+                        // Reativar o reconhecimento em caso de erro
+                        setTimeout(() => {
+                            isProcessing = false;
+                            recognition.start();
+                        }, 500);
                     }
                 })
                 .catch(error => {
                     console.error('Erro ao conectar ao Webhook:', error);
-                    isProcessing = false; // Desbloqueia para novas capturas
-                    recognition.start();
+
+                    // Reativar o reconhecimento em caso de erro
+                    setTimeout(() => {
+                        isProcessing = false;
+                        recognition.start();
+                    }, 500);
                 });
         };
 
