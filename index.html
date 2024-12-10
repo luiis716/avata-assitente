@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Avatar Ouvindo e Repetindo com n8n</title>
+  <title>Ativação por Palavra-Chave</title>
   <style>
     .avatar {
       width: 200px;
@@ -60,10 +60,10 @@
     <div class="mouth" id="mouth"></div>
   </div>
 
-  <button onclick="startListening()">Clique para falar</button>
-
   <script>
     const mouth = document.getElementById('mouth');
+    const keyword = "ei voltron"; // Palavra-chave de ativação
+    let isActivated = false; // Estado de ativação
 
     // Função para animar a boca enquanto fala
     function startTalking() {
@@ -78,66 +78,59 @@
     function repeatText(text) {
       const utterance = new SpeechSynthesisUtterance(text);
 
-      // Configurar a voz (você pode listar e escolher uma voz diferente)
+      // Configurar a voz
       const voices = window.speechSynthesis.getVoices();
-      utterance.voice = voices.find(voice => voice.lang === 'pt-BR') || voices[0]; // Pega a primeira voz em português do Brasil, se disponível
+      utterance.voice = voices.find(voice => voice.lang === 'pt-BR') || voices[0];
 
-      // Configurar parâmetros adicionais, como velocidade e tom
-      utterance.rate = 1; // Velocidade normal
-      utterance.pitch = 1; // Tom normal
+      utterance.rate = 1;
+      utterance.pitch = 1;
 
-      // Iniciar a fala
       window.speechSynthesis.speak(utterance);
 
-      // Animação da boca enquanto fala
-      utterance.onstart = function() {
-        startTalking();
-      };
-
-      // Parar a animação ao terminar a fala
-      utterance.onend = function() {
-        stopTalking();
-      };
+      utterance.onstart = () => startTalking();
+      utterance.onend = () => stopTalking();
     }
 
     // Web Speech API para reconhecimento de fala
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
 
-    // Configurar o idioma para português
     recognition.lang = 'pt-BR';
+    recognition.continuous = true; // Escuta contínua
 
-    // Iniciar o reconhecimento de fala
-    recognition.onstart = function() {
-      console.log("Reconhecimento de fala iniciado.");
-      startTalking();
-    };
-
-    // Quando capturar o resultado
     recognition.onresult = async function(event) {
-      const transcript = event.results[0][0].transcript;
+      const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
       console.log("Você disse:", transcript);
-      stopTalking();
 
-      // Enviar a fala para o n8n e obter a resposta
-      const apiResponse = await sendToN8N(transcript);
+      if (!isActivated) {
+        // Verifica se a palavra-chave foi dita
+        if (transcript.includes(keyword)) {
+          isActivated = true; // Ativa o fluxo principal
+          repeatText("Estou ouvindo!"); // Resposta de ativação
+        }
+      } else {
+        // Quando ativado, envia a fala ao n8n
+        const apiResponse = await sendToN8N(transcript);
+        repeatText(apiResponse);
 
-      // Repetir a resposta recebida do n8n
-      repeatText(apiResponse);
+        // Desativa após o processamento
+        isActivated = false;
+      }
     };
 
-    recognition.onspeechend = function() {
-      stopTalking();
+    recognition.onerror = function(event) {
+      console.error("Erro no reconhecimento:", event.error);
     };
 
-    // Função para iniciar a escuta
-    function startListening() {
-      recognition.start();
-    }
+    recognition.onend = function() {
+      recognition.start(); // Reinicia a escuta contínua
+    };
+
+    recognition.start();
 
     // Função para enviar texto para o n8n e obter a resposta
     async function sendToN8N(userMessage) {
-      const webhookUrl = 'https://automacao-n8n.qzydu8.easypanel.host/webhook/169c631c-3450-4922-b890-1700b7f007fd'; // Substitua pelo URL do seu webhook
+      const webhookUrl = 'https://automacao-n8n.qzydu8.easypanel.host/webhook/169c631c-3450-4922-b890-1700b7f007fd'; // Substitua pelo URL do Webhook
 
       const body = { message: userMessage };
 
@@ -151,7 +144,7 @@
         });
 
         const data = await response.json();
-        return data[0]?.output || "Desculpe, não consegui entender."; // Retorna a resposta ou uma mensagem padrão
+        return data[0]?.output || "Desculpe, não consegui entender.";
       } catch (error) {
         console.error("Erro ao enviar para o n8n:", error);
         return "Desculpe, ocorreu um erro ao processar sua solicitação.";
