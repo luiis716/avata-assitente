@@ -61,42 +61,41 @@
                         const utterance = new SpeechSynthesisUtterance(reply);
                         utterance.lang = 'pt-BR';
 
-                        utterance.onstart = () => console.log('Fala iniciada.');
+                        utterance.onstart = () => {
+                            console.log('Fala iniciada.');
+                        };
+
                         utterance.onend = () => {
                             console.log('Fala concluída.');
 
-                            // Delay antes de reativar o reconhecimento
-                            setTimeout(() => {
-                                isProcessing = false; // Permite reiniciar o reconhecimento
-                                recognition.start(); // Reinicia o reconhecimento de voz
-                            }, 500); // Ajuste o delay conforme necessário
+                            // Reinicia o reconhecimento de voz após a fala terminar
+                            isProcessing = false;
+                            recognition.start();
                         };
 
+                        // Executa a fala
                         synth.speak(utterance);
                     } else {
                         console.error('O Webhook não retornou um texto válido.');
 
                         // Reativar o reconhecimento em caso de erro
-                        setTimeout(() => {
-                            isProcessing = false;
-                            recognition.start();
-                        }, 500);
+                        isProcessing = false;
+                        recognition.start();
                     }
                 })
                 .catch(error => {
                     console.error('Erro ao conectar ao Webhook:', error);
 
                     // Reativar o reconhecimento em caso de erro
-                    setTimeout(() => {
-                        isProcessing = false;
-                        recognition.start();
-                    }, 500);
+                    isProcessing = false;
+                    recognition.start();
                 });
         };
 
         recognition.onend = () => {
+            // Não reiniciar o microfone enquanto estiver processando ou falando
             if (!isProcessing) {
-                recognition.start(); // Reinicia somente se não estiver processando
+                recognition.start();
             }
         };
 
