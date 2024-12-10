@@ -30,6 +30,7 @@
     <script>
         let scene, camera, renderer, avatar, mixer, mouthMorph;
         const clock = new THREE.Clock();
+        let isProcessing = false; // Controle de estado para evitar reinícios prematuros
 
         function init() {
             scene = new THREE.Scene();
@@ -45,6 +46,7 @@
             const ambientLight = new THREE.AmbientLight(0x404040, 1);
             scene.add(ambientLight);
 
+            // Inicialização do modelo 3D
             const loader = new THREE.GLTFLoader();
             loader.load('https://example.com/path/to/your/avatar.glb', (gltf) => {
                 avatar = gltf.scene;
@@ -105,6 +107,10 @@
             const speechText = event.results[0][0].transcript;
             console.log('Texto reconhecido:', speechText);
 
+            // Bloqueia novas capturas enquanto processa
+            isProcessing = true;
+
+            // Envia o texto para o Webhook
             fetch('https://automacao-n8n.qzydu8.easypanel.host/webhook-test/169c631c-3450-4922-b890-1700b7f007fd', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -115,11 +121,16 @@
                     if (reply) {
                         console.log('Resposta do Webhook:', reply);
 
+                        // Configura o sintetizador de fala
                         const utterance = new SpeechSynthesisUtterance(reply);
                         utterance.lang = 'pt-BR';
 
                         utterance.onstart = () => animateMouth(1);
-                        utterance.onend = () => animateMouth(0);
+                        utterance.onend = () => {
+                            animateMouth(0);
+                            isProcessing = false; // Permite reiniciar o reconhecimento
+                            recognition.start(); // Reinicia o reconhecimento de voz
+                        };
 
                         synth.speak(utterance);
 
@@ -128,15 +139,21 @@
                         }
                     } else {
                         console.error('O Webhook não retornou um texto válido.');
+                        isProcessing = false; // Desbloqueia para novas capturas
+                        recognition.start();
                     }
                 })
                 .catch(error => {
                     console.error('Erro ao conectar ao Webhook:', error);
+                    isProcessing = false; // Desbloqueia para novas capturas
+                    recognition.start();
                 });
         };
 
         recognition.onend = () => {
-            recognition.start();
+            if (!isProcessing) {
+                recognition.start(); // Reinicia somente se não estiver processando
+            }
         };
 
         document.getElementById('start-button').addEventListener('click', () => {
