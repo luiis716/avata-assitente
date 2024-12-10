@@ -124,30 +124,45 @@
 
         // Processamento de voz
         recognition.onresult = (event) => {
-            const speechText = event.results[0][0].transcript;
-            console.log('Texto reconhecido:', speechText);
+    const speechText = event.results[0][0].transcript;
+    console.log('Texto reconhecido:', speechText);
 
-            // Envia ao Webhook após uma pausa
-            fetch('https://automacao-n8n.qzydu8.easypanel.host/webhook-test/169c631c-3450-4922-b890-1700b7f007fd', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: speechText })
-            })
-                .then(response => response.json())
-                .then(({ reply, emotion }) => {
-                    console.log('Resposta do N8N:', reply);
+    // Envia o texto para o Webhook
+    fetch('https://seu-webhook-n8n.com/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: speechText })
+    })
+        .then(response => response.json())
+        .then(({ reply, emotion }) => {
+            if (reply) {
+                console.log('Resposta do Webhook:', reply);
 
-                    // Atualiza expressão facial
-                    animateBrows(emotion || 'neutral');
+                // Configura o sintetizador de fala
+                const utterance = new SpeechSynthesisUtterance(reply);
+                utterance.lang = 'pt-BR';
 
-                    // Converte texto para fala
-                    const utterance = new SpeechSynthesisUtterance(reply);
-                    utterance.lang = 'pt-BR';
-                    utterance.onstart = openMouth;
-                    utterance.onend = closeMouth;
-                    synth.speak(utterance);
-                });
-        };
+                // Eventos de animação durante a fala
+                utterance.onstart = () => {
+                    console.log('Falando:', reply);
+                    animateMouth(1); // Boca abre ao falar
+                };
+
+                utterance.onend = () => {
+                    console.log('Fala concluída.');
+                    animateMouth(0); // Boca fecha após a fala
+                };
+
+                // Executa a fala
+                synth.speak(utterance);
+            } else {
+                console.error('O Webhook não retornou um texto válido.');
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao conectar ao Webhook:', error);
+        });
+};
 
         recognition.onend = () => {
             recognition.start(); // Reinicia para ouvir continuamente
