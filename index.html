@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ativação por Palavra-Chave</title>
+  <title>Assistente com Botão</title>
   <style>
     .avatar {
       width: 200px;
@@ -60,11 +60,10 @@
     <div class="mouth" id="mouth"></div>
   </div>
 
+  <button onclick="startListening()">Clique para falar</button>
+
   <script>
     const mouth = document.getElementById('mouth');
-    const keyword = "ei"; // Palavra-chave de ativação
-    let isActivated = false; // Estado de ativação
-    let awaitingCommand = false; // Espera por um comando após ativação
 
     // Função para animar a boca enquanto fala
     function startTalking() {
@@ -97,43 +96,31 @@
     const recognition = new SpeechRecognition();
 
     recognition.lang = 'pt-BR';
-    recognition.continuous = true; // Escuta contínua
 
     recognition.onresult = async function(event) {
-      const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+      const transcript = event.results[0][0].transcript.trim();
       console.log("Você disse:", transcript);
+      stopTalking();
 
-      if (!isActivated && !awaitingCommand) {
-        // Verifica se a palavra-chave foi dita
-        if (transcript.includes(keyword)) {
-          isActivated = true; // Ativa o fluxo principal
-          repeatText("Em que posso ajudar?"); // Resposta de ativação
-          awaitingCommand = true; // Ativa o estado de espera por comando
-        }
-      } else if (awaitingCommand) {
-        // Quando ativado, envia a fala ao n8n
-        const apiResponse = await sendToN8N(transcript);
-        repeatText(apiResponse);
+      // Enviar a fala para o n8n e obter a resposta
+      const apiResponse = await sendToN8N(transcript);
 
-        // Reinicia o estado após responder
-        isActivated = false;
-        awaitingCommand = false;
-      }
+      // Repetir a resposta recebida do n8n
+      repeatText(apiResponse);
     };
 
     recognition.onerror = function(event) {
       console.error("Erro no reconhecimento:", event.error);
     };
 
-    recognition.onend = function() {
-      recognition.start(); // Reinicia a escuta contínua
-    };
-
-    recognition.start();
+    // Função para iniciar a escuta
+    function startListening() {
+      recognition.start();
+    }
 
     // Função para enviar texto para o n8n e obter a resposta
     async function sendToN8N(userMessage) {
-      const webhookUrl = 'https://automacao-n8n.qzydu8.easypanel.host/webhook/169c631c-3450-4922-b890-1700b7f007fd'; // Substitua pelo URL do Webhook
+      const webhookUrl = 'https://seu-n8n-webhook-url.com/webhook'; // Substitua pelo URL do Webhook
 
       const body = { message: userMessage };
 
